@@ -19,6 +19,19 @@ npx expo lint               # lint
 npx tsc --noEmit            # typecheck
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
+npm test                    # running tests
+```
+
+npx : File C:\Program Files\nodejs\npx.ps1 cannot be loaded because running scripts is disabled on this system.
+
+```bash
+cmd /c npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
+cmd /c npx expo start              # start the dev server
+cmd /c npx expo lint               # lint
+cmd /c npx tsc --noEmit            # typecheck
+cmd /c npx expo-doctor             # diagnose dependency and config issues
+cmd /c npx expo install --fix      # fix incompatible package versions
+cmd /c npm test                    # running tests
 ```
 
 Run lint and typecheck before declaring any task done.
