@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Bell, Check, Edit3, RotateCcw, X } from 'lucide-react-native';
+import { Bell, BellRing, Check, Edit3, RotateCcw, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   Modal,
@@ -15,6 +15,7 @@ import {
 import { GlassView } from '../ui/glass-view';
 import { Radius, useAppTheme } from '@/constants/theme';
 import { useOil } from '@/context/oil-context';
+import { sendTestNotification } from '@/services/notifications';
 import { formatNumberIndo } from '@/utils/format';
 
 interface SettingsModalProps {
@@ -29,13 +30,50 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
     updateSettings,
     motorcycle,
     updateMotorcycle,
-    resetToDemo,
     resetAllData,
   } = useOil();
 
   const [isEditingMotor, setIsEditingMotor] = useState(false);
   const [motorName, setMotorName] = useState(motorcycle.name);
   const [motorYear, setMotorYear] = useState(motorcycle.year.toString());
+
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  const handleTestNotification = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+
+    setIsSendingTest(true);
+    setTestFeedback(null);
+
+    const result = await sendTestNotification(motorcycle.name);
+    setIsSendingTest(false);
+    setTestFeedback({
+      success: result.success,
+      message:
+        result.message ||
+        (result.success
+          ? 'Notifikasi tes berhasil dikirim! Silakan periksa bilah notifikasi Anda.'
+          : 'Gagal mengirim notifikasi tes.'),
+    });
+
+    try {
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch {}
+
+    setTimeout(() => {
+      setTestFeedback(null);
+    }, 4500);
+  };
 
   const handleStartEditMotor = () => {
     setMotorName(motorcycle.name);
@@ -54,7 +92,7 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
     setIsEditingMotor(false);
   };
 
-  const KM_OPTIONS = [2000, 3000, 4000, 5000];
+  const KM_OPTIONS = [2000, 2500, 3000, 4000, 5000];
   const MONTH_OPTIONS = [1, 2, 3, 6];
 
   const isPresetKm = KM_OPTIONS.includes(settings.limitKm);
@@ -98,16 +136,6 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
       // web ignore
     }
     updateSettings({ notificationsEnabled: val });
-  };
-
-  const handleResetDemo = async () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      // web ignore
-    }
-    await resetToDemo();
-    onClose();
   };
 
   const handleResetClean = async () => {
@@ -497,48 +525,81 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                   thumbColor={isDark ? '#ffffff' : '#ffffff'}
                 />
               </View>
-            </View>
 
-            {/* Developer / Demo Reset */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: tokens.textMuted }]}>
-                DATA PREVIEW
-              </Text>
-              <View style={styles.demoButtonsRow}>
-                <Pressable
-                  onPress={handleResetDemo}
-                  style={[
-                    styles.secondaryBtn,
-                    {
-                      backgroundColor: tokens.glassFill,
-                      borderColor: tokens.glassBorder,
-                    },
-                  ]}>
-                  <RotateCcw size={15} color={tokens.text} />
-                  <Text
-                    style={[styles.secondaryBtnText, { color: tokens.text }]}>
-                    Muat Data Demo
-                  </Text>
-                </Pressable>
+              {/* Test Notification Button */}
+              <Pressable
+                onPress={handleTestNotification}
+                disabled={isSendingTest}
+                style={({ pressed }) => [
+                  styles.testNotifBtn,
+                  {
+                    backgroundColor: tokens.glassFillSubtle,
+                    borderColor: tokens.glassBorder,
+                    opacity: pressed || isSendingTest ? 0.7 : 1,
+                  },
+                ]}>
+                <BellRing size={16} color={tokens.accent} />
+                <Text style={[styles.testNotifBtnText, { color: tokens.text }]}>
+                  {isSendingTest ? 'Mengirim notifikasi...' : 'Tes Kirim Notifikasi'}
+                </Text>
+              </Pressable>
 
-                <Pressable
-                  onPress={handleResetClean}
+              {testFeedback && (
+                <View
                   style={[
-                    styles.secondaryBtn,
+                    styles.testFeedbackBox,
                     {
-                      backgroundColor: tokens.glassFill,
-                      borderColor: tokens.glassBorder,
+                      backgroundColor: testFeedback.success
+                        ? tokens.accentFill
+                        : tokens.statusSegeraGantiFill,
+                      borderColor: testFeedback.success
+                        ? tokens.accentBorder
+                        : tokens.statusSegeraGantiBorder,
                     },
                   ]}>
                   <Text
                     style={[
-                      styles.secondaryBtnText,
-                      { color: tokens.statusSegeraGantiText },
+                      styles.testFeedbackText,
+                      {
+                        color: testFeedback.success
+                          ? tokens.accentText
+                          : tokens.statusSegeraGantiText,
+                      },
                     ]}>
-                    Reset Bersih
+                    {testFeedback.message}
                   </Text>
-                </Pressable>
-              </View>
+                </View>
+              )}
+            </View>
+
+            {/* Reset Data */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: tokens.textMuted }]}>
+                PENGATURAN DATA
+              </Text>
+              <Pressable
+                onPress={handleResetClean}
+                style={[
+                  styles.secondaryBtn,
+                  {
+                    backgroundColor: tokens.glassFill,
+                    borderColor: tokens.glassBorder,
+                    justifyContent: 'center',
+                    paddingVertical: 14,
+                  },
+                ]}>
+                <RotateCcw size={16} color={tokens.statusSegeraGantiText} />
+                <Text
+                  style={[
+                    styles.secondaryBtnText,
+                    { color: tokens.statusSegeraGantiText, fontWeight: '600' },
+                  ]}>
+                  Reset Data & Mulai Ulang
+                </Text>
+              </Pressable>
+              <Text style={[styles.hintText, { color: tokens.textSubtle, marginTop: 8 }]}>
+                Menghapus semua riwayat catatan, log odometer, dan kembali ke panduan awal.
+              </Text>
             </View>
           </ScrollView>
         </GlassView>
@@ -756,5 +817,32 @@ const styles = StyleSheet.create({
   customKmUnit: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  testNotifBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  testNotifBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  testFeedbackBox: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  testFeedbackText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

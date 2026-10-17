@@ -28,7 +28,7 @@ import { GlassView } from '@/components/ui/glass-view';
 import { MainButton } from '@/components/ui/main-button';
 import { Radius, Spacing, useAppTheme } from '@/constants/theme';
 import { useOil } from '@/context/oil-context';
-import { formatDateIndo } from '@/utils/format';
+import { formatDateIndo, formatLocalDateToYMD } from '@/utils/format';
 
 const POPULAR_OILS = [
   'AHM MPX2',
@@ -91,7 +91,7 @@ export default function CatatScreen() {
       oilBrand === 'Lainnya' ? customBrand || 'Oli Mesin' : oilBrand;
 
     await addOilChange({
-      date: serviceDate.toISOString().split('T')[0],
+      date: formatLocalDateToYMD(serviceDate),
       odometer: odoNum,
       oilBrand: finalBrand,
       price: priceNum,

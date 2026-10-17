@@ -124,8 +124,8 @@ export default function HomeScreen() {
               }
               subValue={
                 oilStatus.hasDailyAverage
-                  ? 'Jendela ~30 hari'
-                  : 'Butuh ≥ 7 hari data'
+                  ? 'Berdasarkan odometer'
+                  : 'Perbarui odometer untuk perkiraan'
               }
             />
           </View>

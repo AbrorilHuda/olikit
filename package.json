@@ -1,7 +1,7 @@
 {
   "name": "olikit",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.10.0",
   "dependencies": {
     "eslint-config-expo": "~57.0.2",
     "expo": "~57.0.30",

@@ -60,16 +60,32 @@ export function validateNewOdometer(
   return { valid: true };
 }
 
+function parseDate(d: string | Date): Date {
+  if (d instanceof Date) return d;
+  if (!d) return new Date();
+  const datePart = d.split('T')[0];
+  const parts = datePart.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(day)) {
+      return new Date(y, m, day);
+    }
+  }
+  return new Date(d);
+}
+
 /**
  * Calculate daily average (rata_harian) over a ~30 day window.
- * Rule from prompt:
  * - rata_harian = (odometer terbaru − odometer tertua dalam jendela ~30 hari) / jumlah hari
- * - Dipakai HANYA JIKA ada minimal 2 titik data dan rentang minimal 7 hari.
- * - Jika tidak, return hasEnoughData: false, rataHarian: null.
+ * - Digunakan saat user melakukan pembaruan odometer (minimal 2 titik data dan rentang minimal 1 hari).
+ * - Jika data belum cukup, return hasEnoughData: false, rataHarian: null.
  */
 export function calculateDailyAverage(
   logs: OdometerLogEntry[] = [],
-  now: Date = new Date()
+  now: Date = new Date(),
+  minDays: number = 1
 ): CalculateDailyAverageResult {
   if (!logs || logs.length < 2) {
     return { rataHarian: null, hasEnoughData: false, daysRange: 0 };
@@ -80,19 +96,19 @@ export function calculateDailyAverage(
   // Normalize and filter logs within last ~30 days (or fallback to latest if close)
   const normalizedLogs = logs
     .map((log) => ({
-      date: typeof log.date === 'string' ? new Date(log.date) : log.date,
+      date: parseDate(log.date),
       odometer: log.odometer,
     }))
-    .filter((log) => !isNaN(log.date.getTime()))
+    .filter((log) => !isNaN(log.date.getTime()) && !isNaN(log.odometer) && log.odometer >= 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  if (normalizedLogs.length < 2) {
+    return { rataHarian: null, hasEnoughData: false, daysRange: 0 };
+  }
 
   // Filter within 30 days
   const recentLogs = normalizedLogs.filter((log) => log.date >= thirtyDaysAgo);
   const effectiveLogs = recentLogs.length >= 2 ? recentLogs : normalizedLogs;
-
-  if (effectiveLogs.length < 2) {
-    return { rataHarian: null, hasEnoughData: false, daysRange: 0 };
-  }
 
   const oldest = effectiveLogs[0];
   const newest = effectiveLogs[effectiveLogs.length - 1];
@@ -100,8 +116,8 @@ export function calculateDailyAverage(
   const timeDiffMs = newest.date.getTime() - oldest.date.getTime();
   const daysRange = Math.max(0, Math.round(timeDiffMs / (1000 * 60 * 60 * 24)));
 
-  // Must have a span of at least 7 days
-  if (daysRange < 7) {
+  // Must have at least minDays between updates (default 1 day)
+  if (daysRange < minDays) {
     return { rataHarian: null, hasEnoughData: false, daysRange };
   }
 
@@ -136,10 +152,7 @@ export function calculateOilStatus(
     isEstimate = false,
   } = params;
 
-  const lastChangeDate =
-    typeof rawLastChangeDate === 'string'
-      ? new Date(rawLastChangeDate)
-      : rawLastChangeDate;
+  const lastChangeDate = parseDate(rawLastChangeDate);
 
   // 1. km_terpakai = odometer_sekarang - odometer_ganti_terakhir
   const kmTerpakai = Math.max(0, currentOdometer - lastChangeOdometer);
@@ -184,9 +197,8 @@ export function calculateOilStatus(
   }
 
   // 6. Perkiraan tanggal
-  // Dipakai HANYA JIKA ada minimal 2 titik data dan rentang minimal 7 hari.
-  // Jika tidak, tampilkan sisa km saja dan pakai batas waktu untuk tanggal.
-  const dailyAvg = calculateDailyAverage(odometerLogs, today);
+  // Berdasarkan pembaruan odometer harian oleh pengguna.
+  const dailyAvg = calculateDailyAverage(odometerLogs, today, 1);
   let tanggalGanti = tanggalWaktu;
   let sisaHari = sisaHariWaktu;
   let hasDateEstimate = false;

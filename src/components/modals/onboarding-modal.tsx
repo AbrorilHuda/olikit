@@ -28,16 +28,16 @@ import { BackgroundGlow } from '../ui/background-glow';
 import { GlassView } from '../ui/glass-view';
 import { MainButton } from '../ui/main-button';
 import { Radius, Spacing, useAppTheme } from '@/constants/theme';
+import { formatLocalDateToYMD, formatNumberIndo } from '@/utils/format';
 import { requestNotificationPermission } from '@/services/notifications';
-import { formatNumberIndo } from '@/utils/format';
 
 interface OnboardingModalProps {
   visible: boolean;
   onComplete: (data: {
-    motorcycleName: string;
-    motorcycleYear: number;
-    limitKm: number;
-    limitMonths: number;
+    motorcycleName?: string;
+    motorcycleYear?: number;
+    limitKm?: number;
+    limitMonths?: number;
     currentOdometer: number;
     lastOdometer: number;
     lastDate: string;
@@ -57,10 +57,11 @@ const COMMON_MOTORCYCLES = [
   'Yamaha Aerox',
 ];
 
-const COMMON_YEARS = [2015, 2016, 2018, 2020, 2022, 2024];
+const COMMON_YEARS = [2018, 2020, 2021, 2022, 2023, 2024, 2025];
 
 const KM_INTERVAL_OPTIONS = [
   { km: 2000, label: '2.000 km', sub: 'Pemakaian berat / macet' },
+  { km: 2500, label: '2.500 km', sub: 'Rekomendasi matic harian' },
   { km: 3000, label: '3.000 km', sub: 'Kondisi perkotaan' },
   { km: 4000, label: '4.000 km', sub: 'Rekomendasi pabrik', isDefault: true },
   { km: 5000, label: '5.000 km', sub: 'Maksimal oli sintetik' },
@@ -79,20 +80,20 @@ export function OnboardingModal({ visible, onComplete }: OnboardingModalProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1: Profil Motor
-  const [motorName, setMotorName] = useState<string>('Honda Vario 150');
-  const [motorYear, setMotorYear] = useState<string>('2015');
+  const [motorName, setMotorName] = useState<string>('Honda Vario 125');
+  const [motorYear, setMotorYear] = useState<string>('2023');
 
   // Step 2: Target Interval
-  const [limitKm, setLimitKm] = useState<number>(4000);
+  const [limitKm, setLimitKm] = useState<number>(2500);
   const [isCustomKm, setIsCustomKm] = useState<boolean>(false);
   const [customKm, setCustomKm] = useState<string>('2500');
   const [limitMonths, setLimitMonths] = useState<number>(2);
 
   // Step 3: Odometer sekarang & riwayat ganti oli terakhir
-  const [currentOdo, setCurrentOdo] = useState<string>('42580');
-  const [lastOdo, setLastOdo] = useState<string>('39500');
+  const [currentOdo, setCurrentOdo] = useState<string>('');
+  const [lastOdo, setLastOdo] = useState<string>('');
   const [dateOption, setDateOption] = useState<'today' | '2weeks' | '1month'>(
-    '1month'
+    'today'
   );
   const [isEstimate, setIsEstimate] = useState<boolean>(false);
 
@@ -144,9 +145,9 @@ export function OnboardingModal({ visible, onComplete }: OnboardingModalProps) {
   // Handle Step 3 -> Step 4
   const handleNextStep3 = () => {
     const currNum = parseInt(currentOdo, 10);
-    const lastNum = parseInt(lastOdo, 10);
+    const lastNum = lastOdo.trim() === '' ? currNum : parseInt(lastOdo, 10);
 
-    if (isNaN(currNum) || currNum <= 0) {
+    if (isNaN(currNum) || currNum < 0) {
       setErrorMsg('Masukkan angka odometer saat ini yang valid');
       return;
     }
@@ -185,15 +186,18 @@ export function OnboardingModal({ visible, onComplete }: OnboardingModalProps) {
     } else if (dateOption === '1month') {
       d.setMonth(d.getMonth() - 1);
     }
-    const lastDateStr = d.toISOString().split('T')[0];
+    const lastDateStr = formatLocalDateToYMD(d);
+
+    const currNum = parseInt(currentOdo, 10) || 0;
+    const lastNum = lastOdo.trim() === '' ? currNum : parseInt(lastOdo, 10) || 0;
 
     onComplete({
-      motorcycleName: motorName.trim() || 'Honda Vario 150',
-      motorcycleYear: parseInt(motorYear, 10) || 2015,
+      motorcycleName: motorName.trim() || 'Honda Vario 125',
+      motorcycleYear: parseInt(motorYear, 10) || 2023,
       limitKm,
       limitMonths,
-      currentOdometer: parseInt(currentOdo, 10) || 42580,
-      lastOdometer: parseInt(lastOdo, 10) || 39500,
+      currentOdometer: currNum,
+      lastOdometer: lastNum,
       lastDate: lastDateStr,
       isEstimate,
       notificationsEnabled: finalNotif || enableNotifications,
@@ -772,7 +776,7 @@ export function OnboardingModal({ visible, onComplete }: OnboardingModalProps) {
                       }}
                       keyboardType="number-pad"
                       style={[styles.hugeInput, { color: tokens.text }]}
-                      placeholder="42580"
+                      placeholder="Contoh: 15200"
                       placeholderTextColor={tokens.textSubtle}
                       maxLength={7}
                     />
@@ -802,7 +806,7 @@ export function OnboardingModal({ visible, onComplete }: OnboardingModalProps) {
                       }}
                       keyboardType="number-pad"
                       style={[styles.hugeInput, { color: tokens.text }]}
-                      placeholder="39500"
+                      placeholder="Contoh: 12500"
                       placeholderTextColor={tokens.textSubtle}
                       maxLength={7}
                     />

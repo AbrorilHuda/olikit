@@ -43,11 +43,10 @@ try {
   if (notif.setNotificationHandler) {
     notif.setNotificationHandler({
       handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
         shouldShowBanner: true,
         shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
       }),
     });
   }
@@ -91,6 +90,53 @@ export async function hasNotificationPermission(): Promise<boolean> {
     return status === 'granted';
   } catch {
     return false;
+  }
+}
+
+/**
+ * Send an immediate test notification to verify push / local notification functionality.
+ */
+export async function sendTestNotification(
+  vehicleName: string = 'Motor'
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      return {
+        success: false,
+        message:
+          'Izin notifikasi belum diaktifkan. Mohon izinkan notifikasi pada pengaturan perangkat Anda.',
+      };
+    }
+
+    if (!notif.scheduleNotificationAsync) {
+      return {
+        success: false,
+        message: 'Modul notifikasi tidak tersedia di platform/perangkat ini.',
+      };
+    }
+
+    const vehicleLabel = vehicleName.trim() || 'Motor';
+
+    await notif.scheduleNotificationAsync({
+      content: {
+        title: `Tes Pengingat Oli: ${vehicleLabel}`,
+        body: 'Notifikasi Olikit berfungsi dengan normal! Anda akan diingatkan saat oli motor mendekati batas ganti.',
+        data: { type: 'test' },
+      },
+      trigger: null,
+    });
+
+    return {
+      success: true,
+      message: 'Notifikasi tes berhasil dikirim!',
+    };
+  } catch (error) {
+    console.warn('Failed to send test notification:', error);
+    return {
+      success: false,
+      message: (error as Error)?.message || 'Gagal mengirim notifikasi tes.',
+    };
   }
 }
 

@@ -66,7 +66,7 @@ describe('Unit Tests: Logika Perhitungan Oli Vario 150 (src/lib/oil.ts)', () => 
   });
 
   // 3. Kasus Data Kurang
-  test('3. Kasus Data Kurang: log kurang dari 2 titik atau rentang < 7 hari', () => {
+  test('3. Kasus Data Kurang: log kurang dari 2 titik atau rentang hari 0', () => {
     const today = new Date('2026-10-16T00:00:00Z');
     const lastChangeDate = new Date('2026-10-10T00:00:00Z');
 
@@ -76,27 +76,27 @@ describe('Unit Tests: Logika Perhitungan Oli Vario 150 (src/lib/oil.ts)', () => 
     assert.equal(avgSingle.hasEnoughData, false);
     assert.equal(avgSingle.rataHarian, null);
 
-    // 2 log tapi rentang hanya 3 hari (< 7 hari)
-    const shortSpanLogs = [
-      { date: '2026-10-10T00:00:00Z', odometer: 42000 },
-      { date: '2026-10-13T00:00:00Z', odometer: 42100 },
+    // 2 log tapi pada hari yang sama (rentang 0 hari)
+    const sameDayLogs = [
+      { date: '2026-10-15T00:00:00Z', odometer: 42000 },
+      { date: '2026-10-15T08:00:00Z', odometer: 42050 },
     ];
-    const avgShort = calculateDailyAverage(shortSpanLogs, today);
-    assert.equal(avgShort.hasEnoughData, false);
-    assert.equal(avgShort.rataHarian, null);
+    const avgSame = calculateDailyAverage(sameDayLogs, today);
+    assert.equal(avgSame.hasEnoughData, false);
+    assert.equal(avgSame.rataHarian, null);
 
-    // Di status oli: harus menampilkan sisa km saja dan pakai batas waktu untuk tanggal
+    // Di status oli dengan hanya 1 log: harus menampilkan sisa km saja dan pakai batas waktu untuk tanggal
     const statusRes = calculateOilStatus({
-      currentOdometer: 42100,
+      currentOdometer: 42050,
       lastChangeOdometer: 41000,
       lastChangeDate,
       limitKm: 4000,
       limitMonths: 2,
-      odometerLogs: shortSpanLogs,
+      odometerLogs: singleLog,
       today,
     });
 
-    assert.equal(statusRes.sisaKm, 2900);
+    assert.equal(statusRes.sisaKm, 2950);
     assert.equal(statusRes.hasDailyAverage, false);
     assert.equal(statusRes.rataHarian, null);
     assert.equal(statusRes.hasDateEstimate, false);
@@ -147,5 +147,37 @@ describe('Unit Tests: Logika Perhitungan Oli Vario 150 (src/lib/oil.ts)', () => 
     assert.equal(res.status, 'aman');
     assert.equal(res.isOverdue, false);
     assert.equal(res.persenSisa > 90, true);
+  });
+
+  // 6. Kasus Skenario Pengguna: Batas 2500 km, 2 bulan, sisa 2356 km
+  test('6. Kasus Skenario Pengguna: interval 2500 km, 2 bulan, estimasi akurat berdasarkan update odometer', () => {
+    const today = new Date('2026-10-17T00:00:00Z');
+    const lastChangeDate = new Date('2026-10-15T00:00:00Z');
+
+    // Pengguna ganti oli tgl 15 di odo 40.000, lalu update odo tgl 17 di 40.144 (jalan 144 km dlm 2 hari -> 72 km/hari)
+    const logs = [
+      { date: '2026-10-15T00:00:00Z', odometer: 40000 },
+      { date: '2026-10-17T00:00:00Z', odometer: 40144 },
+    ];
+
+    const res = calculateOilStatus({
+      currentOdometer: 40144,
+      lastChangeOdometer: 40000,
+      lastChangeDate,
+      limitKm: 2500,
+      limitMonths: 2,
+      odometerLogs: logs,
+      today,
+    });
+
+    assert.equal(res.kmTerpakai, 144);
+    assert.equal(res.sisaKm, 2356);
+    assert.equal(res.status, 'aman');
+    assert.equal(res.rataHarian, 72);
+    assert.equal(res.hasDateEstimate, true);
+    // Sisa hari = 2356 / 72 = 33 hari (bukan 2 hari!)
+    assert.equal(res.sisaHari, 33);
+    // Tanggal ganti adalah sekitar 33 hari ke depan (~19 November 2026), bukan 19 Oktober!
+    assert.equal(res.tanggalGanti.getMonth(), 10); // November (0-indexed: 10)
   });
 });

@@ -6,6 +6,7 @@ import {
   OilChangeRecord,
   Settings,
 } from '@/types/oil';
+import { formatLocalDateToYMD } from '@/utils/format';
 
 const DB_NAME = 'olikit.db';
 
@@ -18,68 +19,18 @@ export interface DatabaseState {
 
 const DEFAULT_STATE: DatabaseState = {
   motorcycle: {
-    id: 'vario-150-default',
-    name: 'Honda Vario 150',
-    year: 2015,
-    currentOdometer: 42580,
+    id: 'motor-utama',
+    name: 'Motor Saya',
+    year: 2024,
+    currentOdometer: 0,
   },
-  oilChanges: [
-    {
-      id: 'oil-1',
-      date: '2026-09-15',
-      odometer: 39160,
-      oilBrand: 'AHM MPX2',
-      price: 65000,
-      workshop: 'AHASS Cipete',
-      includesGearOil: false,
-      isEstimate: false,
-      kmDelta: 3860,
-    },
-    {
-      id: 'oil-2',
-      date: '2026-05-20',
-      odometer: 35300,
-      oilBrand: 'AHM SPX2',
-      price: 85000,
-      workshop: 'AHASS Fatmawati',
-      includesGearOil: true,
-      isEstimate: false,
-      kmDelta: 3920,
-    },
-    {
-      id: 'oil-3',
-      date: '2026-01-18',
-      odometer: 31380,
-      oilBrand: 'Castrol Power1',
-      price: 70000,
-      workshop: 'Bengkel Mandiri',
-      includesGearOil: false,
-      isEstimate: false,
-      kmDelta: 3980,
-    },
-    {
-      id: 'oil-4',
-      date: '2025-09-10',
-      odometer: 27400,
-      oilBrand: 'AHM MPX2',
-      price: 60000,
-      workshop: 'AHASS Cipete',
-      includesGearOil: false,
-      isEstimate: true,
-      kmDelta: 0,
-    },
-  ],
-  odometerLogs: [
-    { id: 'odo-1', date: '2026-09-15', odometer: 39160 },
-    { id: 'odo-2', date: '2026-09-30', odometer: 40580 },
-    { id: 'odo-3', date: '2026-10-10', odometer: 42100 },
-    { id: 'odo-4', date: '2026-10-16', odometer: 42580 },
-  ],
+  oilChanges: [],
+  odometerLogs: [],
   settings: {
-    limitKm: 4000,
+    limitKm: 2500,
     limitMonths: 2,
     notificationsEnabled: true,
-    onboarded: true,
+    onboarded: false,
   },
 };
 
@@ -132,6 +83,19 @@ export async function initDatabase(): Promise<DatabaseState> {
       );
     `);
 
+    // Hapus data dummy bawaan lama jika ada agar tidak merusak data pengguna
+    try {
+      await db.runAsync(
+        "DELETE FROM oil_change WHERE id IN ('oil-1', 'oil-2', 'oil-3', 'oil-4')"
+      );
+      await db.runAsync(
+        "DELETE FROM odometer_log WHERE id IN ('odo-1', 'odo-2', 'odo-3', 'odo-4')"
+      );
+      await db.runAsync(
+        "DELETE FROM motorcycle WHERE id = 'vario-150-default' AND (SELECT COUNT(*) FROM oil_change) = 0"
+      );
+    } catch {}
+
     const motoRow = await db.getFirstAsync<{
       id: string;
       name: string;
@@ -147,37 +111,20 @@ export async function initDatabase(): Promise<DatabaseState> {
         DEFAULT_STATE.motorcycle.year,
         DEFAULT_STATE.motorcycle.currentOdometer
       );
+    }
 
+    const settingsRow = await db.getFirstAsync<{ id: number; onboarded: number }>(
+      'SELECT id, onboarded FROM settings WHERE id = 1'
+    );
+
+    if (!settingsRow) {
       await db.runAsync(
         'INSERT OR REPLACE INTO settings (id, limit_km, limit_months, notifications_enabled, onboarded) VALUES (1, ?, ?, ?, ?)',
         DEFAULT_STATE.settings.limitKm,
         DEFAULT_STATE.settings.limitMonths,
         DEFAULT_STATE.settings.notificationsEnabled ? 1 : 0,
-        DEFAULT_STATE.settings.onboarded ? 1 : 0
+        0
       );
-
-      for (const item of DEFAULT_STATE.oilChanges) {
-        await db.runAsync(
-          'INSERT INTO oil_change (id, date, odometer, oil_brand, price, workshop, includes_gear_oil, is_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          item.id,
-          item.date,
-          item.odometer,
-          item.oilBrand,
-          item.price,
-          item.workshop,
-          item.includesGearOil ? 1 : 0,
-          item.isEstimate ? 1 : 0
-        );
-      }
-
-      for (const log of DEFAULT_STATE.odometerLogs) {
-        await db.runAsync(
-          'INSERT INTO odometer_log (id, date, odometer) VALUES (?, ?, ?)',
-          log.id,
-          log.date,
-          log.odometer
-        );
-      }
     }
 
     return await loadAllData();
@@ -314,7 +261,7 @@ export async function insertOilChangeDb(
 export async function insertOdometerLogDb(
   newOdometer: number
 ): Promise<OdometerLog> {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = formatLocalDateToYMD(new Date());
   const newLog: OdometerLog = {
     id: `odo-${Date.now()}`,
     date: todayStr,
@@ -421,7 +368,7 @@ export async function updateSettingsDb(
   }
 }
 
-export async function resetDatabaseToDemo(): Promise<DatabaseState> {
+export async function resetDatabaseClean(): Promise<DatabaseState> {
   try {
     const db = await getDb();
     await db.execAsync(`
@@ -436,42 +383,22 @@ export async function resetDatabaseToDemo(): Promise<DatabaseState> {
       DEFAULT_STATE.motorcycle.id,
       DEFAULT_STATE.motorcycle.name,
       DEFAULT_STATE.motorcycle.year,
-      DEFAULT_STATE.motorcycle.currentOdometer
+      0
     );
 
     await db.runAsync(
-      'INSERT INTO settings (id, limit_km, limit_months, notifications_enabled, onboarded) VALUES (1, ?, ?, ?, ?)',
+      'INSERT INTO settings (id, limit_km, limit_months, notifications_enabled, onboarded) VALUES (1, ?, ?, ?, 0)',
       DEFAULT_STATE.settings.limitKm,
       DEFAULT_STATE.settings.limitMonths,
-      DEFAULT_STATE.settings.notificationsEnabled ? 1 : 0,
-      1
+      DEFAULT_STATE.settings.notificationsEnabled ? 1 : 0
     );
-
-    for (const item of DEFAULT_STATE.oilChanges) {
-      await db.runAsync(
-        'INSERT INTO oil_change (id, date, odometer, oil_brand, price, workshop, includes_gear_oil, is_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        item.id,
-        item.date,
-        item.odometer,
-        item.oilBrand,
-        item.price,
-        item.workshop,
-        item.includesGearOil ? 1 : 0,
-        item.isEstimate ? 1 : 0
-      );
-    }
-
-    for (const log of DEFAULT_STATE.odometerLogs) {
-      await db.runAsync(
-        'INSERT INTO odometer_log (id, date, odometer) VALUES (?, ?, ?)',
-        log.id,
-        log.date,
-        log.odometer
-      );
-    }
 
     return await loadAllData();
   } catch {
     return DEFAULT_STATE;
   }
+}
+
+export async function resetDatabaseToDemo(): Promise<DatabaseState> {
+  return await resetDatabaseClean();
 }

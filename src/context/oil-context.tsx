@@ -16,7 +16,7 @@ import {
   initDatabase,
   insertOdometerLogDb,
   insertOilChangeDb,
-  resetDatabaseToDemo,
+  resetDatabaseClean,
   updateMotorcycleDb,
   updateSettingsDb,
 } from '@/services/db';
@@ -69,17 +69,17 @@ interface OilContextType {
 }
 
 const DEFAULT_MOTORCYCLE: Motorcycle = {
-  id: 'vario-150-default',
-  name: 'Honda Vario 150',
-  year: 2015,
-  currentOdometer: 42580,
+  id: 'motor-utama',
+  name: 'Motor Saya',
+  year: 2024,
+  currentOdometer: 0,
 };
 
 const DEFAULT_SETTINGS: Settings & { onboarded: boolean } = {
-  limitKm: 4000,
+  limitKm: 2500,
   limitMonths: 2,
   notificationsEnabled: true,
-  onboarded: true,
+  onboarded: false,
 };
 
 const OilContext = createContext<OilContextType | undefined>(undefined);
@@ -304,24 +304,40 @@ export function OilProvider({ children }: { children: React.ReactNode }) {
       isEstimate: data.isEstimate,
     };
 
-    await insertOdometerLogDb(data.currentOdometer);
     const savedRecord = await insertOilChangeDb(initialRecord);
     setOilChanges([savedRecord]);
+
+    const initialLogs: OdometerLog[] = [
+      {
+        id: `odo-${Date.now()}-1`,
+        date: data.lastDate,
+        odometer: data.lastOdometer,
+      },
+    ];
+
+    if (data.currentOdometer > data.lastOdometer) {
+      const currLog = await insertOdometerLogDb(data.currentOdometer);
+      initialLogs.push(currLog);
+    }
+    setOdometerLogs(initialLogs);
   };
 
-  // Reset to default demo data
+  // Reset to default clean state
   const resetToDemo = async (): Promise<void> => {
-    const demo = await resetDatabaseToDemo();
-    setMotorcycle(demo.motorcycle);
-    setOilChanges(demo.oilChanges);
-    setOdometerLogs(demo.odometerLogs);
-    setSettings(demo.settings);
+    const clean = await resetDatabaseClean();
+    setMotorcycle(clean.motorcycle);
+    setOilChanges([]);
+    setOdometerLogs([]);
+    setSettings(clean.settings);
   };
 
   // Reset all to clean new-user onboarding state
   const resetAllData = async (): Promise<void> => {
-    await updateSettingsDb({ onboarded: false });
-    setSettings((prev) => ({ ...prev, onboarded: false }));
+    const clean = await resetDatabaseClean();
+    setMotorcycle(clean.motorcycle);
+    setOilChanges([]);
+    setOdometerLogs([]);
+    setSettings(clean.settings);
   };
 
   return (
